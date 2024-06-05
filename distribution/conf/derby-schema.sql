@@ -229,3 +229,12 @@ MODIFY COLUMN `src_ip` varchar(50) CHARACTER SET utf8 COLLATE utf8_bin NULL DEFA
 
 ALTER TABLE `config_info_beta`
 MODIFY COLUMN `src_ip` varchar(50) CHARACTER SET utf8 COLLATE utf8_bin NULL DEFAULT NULL COMMENT 'source ip' AFTER `src_user`;
+
+ALTER TABLE `config_info`
+ADD COLUMN `encrypted_data_key` LONG VARCHAR DEFAULT NULL AFTER `c_schema`;
+
+ALTER TABLE `his_config_info`
+ADD COLUMN `encrypted_data_key` LONG VARCHAR DEFAULT NULL AFTER `op_type`;
+
+ALTER TABLE `config_info_beta`
+ADD COLUMN `encrypted_data_key` LONG VARCHAR DEFAULT NULL AFTER `src_ip`;
