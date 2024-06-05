@@ -19,6 +19,9 @@ package com.alibaba.nacos.naming.controllers;
 import com.alibaba.nacos.auth.annotation.Secured;
 import com.alibaba.nacos.common.utils.InternetAddressUtil;
 import com.alibaba.nacos.common.utils.JacksonUtils;
+import com.alibaba.nacos.core.cluster.Member;
+import com.alibaba.nacos.core.cluster.NodeState;
+import com.alibaba.nacos.core.cluster.ServerMemberManager;
 import com.alibaba.nacos.core.paramcheck.ExtractorManager;
 import com.alibaba.nacos.core.utils.WebUtils;
 import com.alibaba.nacos.naming.cluster.ServerStatusManager;
@@ -44,7 +47,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Operation for operators.
@@ -60,6 +65,8 @@ public class OperatorController {
     private final SwitchManager switchManager;
     
     private final ServerStatusManager serverStatusManager;
+
+    private final ServerMemberManager memberManager;
     
     private final SwitchDomain switchDomain;
     
@@ -69,12 +76,13 @@ public class OperatorController {
     
     public OperatorController(SwitchManager switchManager, ServerStatusManager serverStatusManager,
             SwitchDomain switchDomain, DistroMapper distroMapper,
-            ClientManager clientManager) {
+            ClientManager clientManager, ServerMemberManager memberManager) {
         this.switchManager = switchManager;
         this.serverStatusManager = serverStatusManager;
         this.switchDomain = switchDomain;
         this.distroMapper = distroMapper;
         this.clientManager = clientManager;
+        this.memberManager = memberManager;
     }
     
     /**
@@ -203,5 +211,21 @@ public class OperatorController {
     public String setLogLevel(@RequestParam String logName, @RequestParam String logLevel) {
         Loggers.setLogLevel(logName, logLevel);
         return "ok";
+    }
+
+    @GetMapping("/servers")
+    public ObjectNode getHealthyServerList(@RequestParam(required = false) boolean healthy) {
+
+        ObjectNode result = JacksonUtils.createEmptyJsonNode();
+        if (healthy) {
+            List<Member> healthyMember = memberManager.allMembers().stream()
+                    .filter(member -> member.getState() == NodeState.UP)
+                    .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
+            result.replace("servers", JacksonUtils.transferToJsonNode(healthyMember));
+        } else {
+            result.replace("servers", JacksonUtils.transferToJsonNode(memberManager.allMembers()));
+        }
+
+        return result;
     }
 }
