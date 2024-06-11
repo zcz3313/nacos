@@ -55,7 +55,7 @@ public class ParamCheckRule {
     
     public int minPort = 0;
     
-    public int maxMetadataLength = 1024;
+    public int maxMetadataLength = 32 * 1024;
     
     
 }
