@@ -212,11 +212,8 @@ INSERT INTO users (username, password, enabled) VALUES ('nacos', '$2a$10$EuWPZHz
 
 INSERT INTO roles (username, role) VALUES ('nacos', 'ROLE_ADMIN');
 
-ALTER TABLE `config_info`
-ADD COLUMN `encrypted_data_key` LONG VARCHAR DEFAULT NULL AFTER `c_schema`;
+ALTER TABLE config_info ADD COLUMN encrypted_data_key text DEFAULT NULL;
 
-ALTER TABLE `his_config_info`
-ADD COLUMN `encrypted_data_key` LONG VARCHAR DEFAULT NULL AFTER `tenant_id`;
+ALTER TABLE his_config_info ADD COLUMN encrypted_data_key text DEFAULT NULL;
 
-ALTER TABLE `config_info_beta`
-ADD COLUMN `encrypted_data_key` LONG VARCHAR DEFAULT NULL AFTER `tenant_id`;
+ALTER TABLE config_info_beta ADD COLUMN encrypted_data_key text DEFAULT NULL;
