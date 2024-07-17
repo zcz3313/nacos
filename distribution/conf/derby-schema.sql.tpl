@@ -210,9 +210,9 @@ CREATE TABLE permissions (
     constraint uk_role_permission UNIQUE (role,resource,action)
 );
 
-INSERT INTO users (username, password, enabled) VALUES ('nacos', '$SUPOS_NACOS_PWD', TRUE);
+INSERT INTO users (username, password, enabled) VALUES ('nacos', '@@SUPOS_NACOS_PWD', TRUE);
 
-UPDATE users SET password = '$SUPOS_NACOS_PWD' WHERE username = 'nacos';
+UPDATE users SET password = '@@SUPOS_NACOS_PWD' WHERE username = 'nacos';
 
 INSERT INTO roles (username, role) VALUES ('nacos', 'ROLE_ADMIN');
 
