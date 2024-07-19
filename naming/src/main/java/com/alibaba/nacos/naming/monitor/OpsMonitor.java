@@ -82,10 +82,10 @@ public class OpsMonitor {
             if (response != null) {
                 LOGGER.error("register persistent instance error, response status: {}, response body: {}",
                         response.getStatusCode(), response.getBody(), e);
-                deleteRaftDir();
             } else {
                 LOGGER.error("register persistent instance error", e);
             }
+            deleteRaftDir();
         } finally {
             deletePersistentInstance();
         }
