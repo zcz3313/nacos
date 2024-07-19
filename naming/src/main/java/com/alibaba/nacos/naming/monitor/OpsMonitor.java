@@ -50,7 +50,7 @@ public class OpsMonitor {
         LOGGER.info("nacos ops monitor is enabled");
 
         url = String.format(
-                "http://localhost:%s/nacos/v1/ns/instance?ip=localhost&port=52520&serviceName=test-persistent-instance-rerver&ephemeral=true", serverPot);
+                "http://localhost:%s/nacos/v1/ns/instance?ip=localhost&port=52520&serviceName=test-persistent-instance-rerver&ephemeral=false", serverPot);
 
         // if nacos started, then go on
         ThreadFactory namedThreadFactory = new ThreadFactoryBuilder().nameFormat("ops-monitor").build();
@@ -79,7 +79,6 @@ public class OpsMonitor {
             LOGGER.info("register persistent instance ok, response status: {}, response body: {}",
                     response.getStatusCode(), response.getBody());
         } catch (Exception e) {
-            deletePersistentInstance();
             if (response != null) {
                 LOGGER.error("register persistent instance error, response status: {}, response body: {}",
                         response.getStatusCode(), response.getBody(), e);
@@ -87,6 +86,8 @@ public class OpsMonitor {
             } else {
                 LOGGER.error("register persistent instance error", e);
             }
+        } finally {
+            deletePersistentInstance();
         }
     }
 
