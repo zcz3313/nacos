@@ -120,9 +120,26 @@ public class OpsMonitor implements InitializingBean {
         String dirName = "data/protocol/raft";
         File file = new File(Paths.get(EnvUtil.getNacosHome(), dirName).toUri());
         LOGGER.info("delete raft module dir: {}", file.getAbsolutePath());
-        file.delete();
+        deleteDirectory(file);
         LOGGER.info("system exit");
         System.exit(100);
+    }
+
+    private boolean deleteDirectory(File directory) {
+        if (directory.exists()) {
+            File[] entries = directory.listFiles();
+            if (entries != null) {
+                for (File entry : entries) {
+                    if (entry.isDirectory()) {
+                        deleteDirectory(entry);
+                    } else {
+                        entry.delete();
+                    }
+                }
+            }
+        }
+
+        return directory.delete();
     }
 
     @Override
