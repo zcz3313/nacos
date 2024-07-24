@@ -1,11 +1,16 @@
 package com.alibaba.nacos.naming.monitor;
 
+import com.alibaba.nacos.auth.config.AuthConfigs;
+import com.alibaba.nacos.common.utils.StringUtils;
 import com.alibaba.nacos.common.utils.ThreadFactoryBuilder;
 import com.alibaba.nacos.sys.env.EnvUtil;
 import com.alibaba.nacos.sys.utils.ApplicationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -26,7 +31,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  * @author eric
  */
 @Component
-public class OpsMonitor {
+public class OpsMonitor implements InitializingBean {
     private static final Logger LOGGER = LoggerFactory.getLogger(OpsMonitor.class);
 
     @Value("${server.port}")
@@ -39,7 +44,6 @@ public class OpsMonitor {
     /**
      * init method.
      */
-    @PostConstruct
     public void init() {
         // if nacos.naming.ops.monitor.enabled = true, then go on
         boolean enabled = Boolean.getBoolean("nacos.naming.ops.monitor.enabled");
@@ -75,7 +79,7 @@ public class OpsMonitor {
         ResponseEntity<String> response = null;
         try {
             LOGGER.info("register persistent instance to test whether raft module is ok or not");
-            response = restTemplate.exchange(url, HttpMethod.POST, null, String.class);
+            response = restTemplate.exchange(url, HttpMethod.POST, createAuthHeaderEntity(), String.class);
             LOGGER.info("register persistent instance ok, response status: {}, response body: {}",
                     response.getStatusCode(), response.getBody());
         } catch (Exception e) {
@@ -95,12 +99,22 @@ public class OpsMonitor {
         RestTemplate restTemplate = new RestTemplate();
         try {
             LOGGER.info("delete persistent instance to recover naming list");
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, null, String.class);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, createAuthHeaderEntity(), String.class);
             LOGGER.info("delete persistent instance ok, response status: {}, response body: {}",
                     response.getStatusCode(), response.getBody());
         } catch (Exception ignore) {
             LOGGER.info("delete persistent instance to recover naming list error, will ignore it", ignore);
         }
+    }
+
+    private HttpEntity<Void> createAuthHeaderEntity() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.add("User-Agent", "Nacos-Server:2.3.2");
+        AuthConfigs authConfigs = ApplicationUtils.getBean(AuthConfigs.class);
+        if (StringUtils.isNotBlank(authConfigs.getServerIdentityKey())) {
+            headers.add(authConfigs.getServerIdentityKey(), authConfigs.getServerIdentityValue());
+        }
+        return new HttpEntity<>(headers);
     }
 
     private void deleteRaftDir() {
@@ -112,4 +126,8 @@ public class OpsMonitor {
         System.exit(100);
     }
 
+    @Override
+    public void afterPropertiesSet() throws Exception {
+        init();
+    }
 }
