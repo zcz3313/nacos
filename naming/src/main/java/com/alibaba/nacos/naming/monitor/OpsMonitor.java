@@ -13,7 +13,9 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
@@ -75,20 +77,18 @@ public class OpsMonitor implements InitializingBean {
     private void registerPersistentInstance() {
         // register a persistent instance to nacos using v1 api, check errCode and errMsg
         RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<String> response = null;
         try {
             LOGGER.info("register persistent instance to test whether raft module is ok or not");
-            response = restTemplate.exchange(url, HttpMethod.POST, createAuthHeaderEntity(), String.class);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, createAuthHeaderEntity(), String.class);
             LOGGER.info("register persistent instance ok, response status: {}, response body: {}",
                     response.getStatusCode(), response.getBody());
-        } catch (Exception e) {
-            if (response != null) {
-                LOGGER.error("register persistent instance error, response status: {}, response body: {}",
-                        response.getStatusCode(), response.getBody(), e);
-            } else {
-                LOGGER.error("register persistent instance error", e);
+        } catch (HttpServerErrorException e) {
+            String exMsg = e.getMessage();
+            LOGGER.error("register persistent instance error, ex msg: {}", exMsg, e);
+            if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR
+                    && exMsg != null && exMsg.contains("did not find the Leader node")) {
+                deleteRaftDirAndExit();
             }
-            deleteRaftDir();
         } finally {
             deletePersistentInstance();
         }
@@ -116,7 +116,7 @@ public class OpsMonitor implements InitializingBean {
         return new HttpEntity<>(headers);
     }
 
-    private void deleteRaftDir() {
+    private void deleteRaftDirAndExit() {
         String dirName = "data/protocol/raft";
         File file = new File(Paths.get(EnvUtil.getNacosHome(), dirName).toUri());
         LOGGER.info("delete raft module dir: {}", file.getAbsolutePath());
