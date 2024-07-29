@@ -3,6 +3,8 @@ package com.alibaba.nacos.naming.monitor;
 import com.alibaba.nacos.auth.config.AuthConfigs;
 import com.alibaba.nacos.common.utils.StringUtils;
 import com.alibaba.nacos.common.utils.ThreadFactoryBuilder;
+import com.alibaba.nacos.core.cluster.health.ModuleHealthCheckerHolder;
+import com.alibaba.nacos.core.cluster.health.ReadinessResult;
 import com.alibaba.nacos.sys.env.EnvUtil;
 import com.alibaba.nacos.sys.utils.ApplicationUtils;
 import org.slf4j.Logger;
@@ -49,10 +51,10 @@ public class OpsMonitor implements InitializingBean {
         // if nacos.naming.ops.monitor.enabled = true, then go on
         boolean enabled = Boolean.getBoolean("nacos.naming.ops.monitor.enabled");
         if (!enabled) {
-            LOGGER.info("nacos ops monitor is disabled");
+            LOGGER.info("[ops monitor]nacos ops monitor is disabled");
             return;
         }
-        LOGGER.info("nacos ops monitor is enabled");
+        LOGGER.info("[ops monitor]nacos ops monitor is enabled");
 
         url = String.format(
                 "http://localhost:%s/nacos/v1/ns/instance?ip=localhost&port=52520&serviceName=test-persistent-instance-rerver&ephemeral=false", serverPot);
@@ -65,44 +67,71 @@ public class OpsMonitor implements InitializingBean {
                 namedThreadFactory);
         executorService.submit(() -> {
             while (!ApplicationUtils.isStarted()) {
-                LOGGER.info("nacos ops monitor is waiting for nacos started...");
+                LOGGER.info("[ops monitor]nacos ops monitor is waiting for nacos started...");
                 try {
                     Thread.sleep(1000L);
                 } catch (Throwable ignore) { }
             }
-            registerPersistentInstance();
+            ReadinessResult result = ModuleHealthCheckerHolder.getInstance().checkReadiness();
+            LOGGER.info("[ops monitor]nacos module health result: " + result.getResultMessage());
+            startProbe();
         });
+    }
+
+    private void startProbe() {
+        int intervalInSeconds = 3;
+        int totalRetry = Integer.getInteger("nacos.naming.ops.monitor.retry", 20);
+        int retry = 0;
+        boolean succeed = false;
+        while (!succeed && retry <= totalRetry) {
+            try {
+                Thread.sleep(intervalInSeconds * 1000L);
+            } catch (Exception ignore) {
+
+            }
+            retry++;
+            LOGGER.info("[ops monitor]start to probe, try " + retry + "/" + totalRetry);
+            try {
+                registerPersistentInstance();
+                succeed = true;
+            } catch (HttpServerErrorException e) {
+                String exMsg = e.getMessage();
+                LOGGER.error("[ops monitor]register persistent instance error, ex msg: {}", exMsg, e);
+                if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR
+                        && exMsg != null && exMsg.contains("did not find the Leader node")) {
+                    succeed = false;
+                } else {
+                    succeed = true;
+                }
+            } catch (Exception other) {
+                succeed = true;
+            }
+        }
+        LOGGER.info("probe result: " + succeed + ", try: " + retry + "/" + totalRetry);
+        deletePersistentInstance();
+        if (!succeed) {
+            deleteRaftDirAndExit();
+        }
     }
 
     private void registerPersistentInstance() {
         // register a persistent instance to nacos using v1 api, check errCode and errMsg
         RestTemplate restTemplate = new RestTemplate();
-        try {
-            LOGGER.info("register persistent instance to test whether raft module is ok or not");
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, createAuthHeaderEntity(), String.class);
-            LOGGER.info("register persistent instance ok, response status: {}, response body: {}",
-                    response.getStatusCode(), response.getBody());
-        } catch (HttpServerErrorException e) {
-            String exMsg = e.getMessage();
-            LOGGER.error("register persistent instance error, ex msg: {}", exMsg, e);
-            if (e.getStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR
-                    && exMsg != null && exMsg.contains("did not find the Leader node")) {
-                deleteRaftDirAndExit();
-            }
-        } finally {
-            deletePersistentInstance();
-        }
+        LOGGER.info("[ops monitor]register persistent instance to test whether raft module is ok or not");
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, createAuthHeaderEntity(), String.class);
+        LOGGER.info("[ops monitor]register persistent instance ok, response status: {}, response body: {}",
+                response.getStatusCode(), response.getBody());
     }
 
     private void deletePersistentInstance() {
         RestTemplate restTemplate = new RestTemplate();
         try {
-            LOGGER.info("delete persistent instance to recover naming list");
+            LOGGER.info("[ops monitor]delete persistent instance to recover naming list");
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, createAuthHeaderEntity(), String.class);
-            LOGGER.info("delete persistent instance ok, response status: {}, response body: {}",
+            LOGGER.info("[ops monitor]delete persistent instance ok, response status: {}, response body: {}",
                     response.getStatusCode(), response.getBody());
         } catch (Exception ignore) {
-            LOGGER.info("delete persistent instance to recover naming list error, will ignore it", ignore);
+            LOGGER.info("[ops monitor]delete persistent instance to recover naming list error, will ignore it", ignore);
         }
     }
 
@@ -119,9 +148,9 @@ public class OpsMonitor implements InitializingBean {
     private void deleteRaftDirAndExit() {
         String dirName = "data/protocol/raft";
         File file = new File(Paths.get(EnvUtil.getNacosHome(), dirName).toUri());
-        LOGGER.info("delete raft module dir: {}", file.getAbsolutePath());
+        LOGGER.info("[ops monitor]delete raft module dir: {}", file.getAbsolutePath());
         deleteDirectory(file);
-        LOGGER.info("system exit");
+        LOGGER.info("[ops monitor]system exit");
         System.exit(100);
     }
 
